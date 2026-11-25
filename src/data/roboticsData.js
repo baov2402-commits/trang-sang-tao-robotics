@@ -336,3 +336,37 @@ export const TECH_QUIZ_QUESTIONS = [
     explain: 'Định luật Ohm: Hiệu điện thế U bằng tích cường độ dòng điện I và điện trở R (U = I × R).',
   },
 ];
+
+export const INITIAL_ARTICLES = [
+  {
+    id: 'art-1',
+    title: 'Kiến trúc Robot tự hành AMR: Từ cảm biến LiDAR đến thuật toán SLAM',
+    category: 'ROS2 & Drone',
+    author: 'Ban Biên Tập Robotics',
+    date: '25/11/2026',
+    readTime: '6 phút đọc',
+    summary: 'Tìm hiểu cách một robot tự hành trong nhà máy quét bản đồ 2D/3D, định vị vị trí chính xác đến từng centimet và tránh vật cản động.',
+    content: `Robot tự hành AMR (Autonomous Mobile Robot) đang thay thế dần xe AGV chạy theo vạch từ truyền thống. Cốt lõi của AMR nằm ở 3 lớp:\n\n1. Lớp cảm biến: LiDAR 2D/3D quét đám mây điểm kết hợp IMU và Encoder bánh xe để tạo dữ liệu Odometry chính xác.\n2. Lớp nhận thức & SLAM: Sử dụng Slam Toolbox hoặc Cartographer trên ROS2 để vừa dựng bản đồ vừa định vị thời gian thực.\n3. Lớp lập kế hoạch đường đi (Nav2): Tính toán quỹ đạo toàn cục (Global Planner) và tránh vật cản tức thời (Local Planner) để gửi lệnh vận tốc /cmd_vel xuống vi điều khiển ESP32/STM32.`,
+  },
+  {
+    id: 'art-2',
+    title: 'So sánh ESP32-S3, STM32F4 và Raspberry Pi 5 trong các dự án Kỹ thuật',
+    category: 'Phần cứng & Mạch',
+    author: 'Minh Khoa',
+    date: '24/11/2026',
+    readTime: '5 phút đọc',
+    summary: 'Nên chọn vi điều khiển nào cho cánh tay robot, drone hay hệ thống xử lý ảnh AI? Bài viết phân tích chi tiết hiệu năng và giá thành.',
+    content: `Việc chọn đúng bộ não cho robot giúp tiết kiệm 50% thời gian phát triển:\n\n• ESP32-S3: Phù hợp robot IoT, điều khiển qua Wi-Fi/BLE, hỗ trợ tăng tốc vector nhẹ, giá thành rất rẻ.\n• STM32F4/H7: Vua điều khiển thời gian thực (Real-time), bộ đếm Timer phần cứng mạnh mẽ cho điều khiển FOC động cơ không chổi than và đọc nhiều encoder tốc độ cao.\n• Raspberry Pi 5 / Jetson Orin Nano: Đóng vai trò máy tính nhúng (SBC) chạy Linux, ROS2 và mô hình Thị giác máy tính YOLO.`,
+  },
+  {
+    id: 'art-3',
+    title: 'Ứng dụng Vision-Language-Action (VLA) cho Cánh tay Robot thế hệ mới',
+    category: 'AI & Thị giác',
+    author: 'Lan Anh',
+    date: '22/11/2026',
+    readTime: '7 phút đọc',
+    summary: 'Mô hình AI đa phương thức giúp cánh tay robot hiểu trực tiếp câu lệnh tiếng Việt và tự động thao tác gắp, phân loại linh kiện.',
+    content: `Thay vì phải lập trình cứng tọa độ (x, y, z) cho từng vật thể, các mô hình VLA kết hợp thị giác máy tính và mô hình ngôn ngữ lớn (như Gemini) cho phép robot:\n\n1. Nhìn qua camera gắn trên cổ tay (Eye-in-Hand).\n2. Hiểu ngữ cảnh câu lệnh: "Hãy gắp con tụ điện màu xanh bỏ vào khay bên phải".\n3. Sinh ra chuỗi quỹ đạo khớp (Joint Trajectory) an toàn và mượt mà.`,
+  },
+];
+

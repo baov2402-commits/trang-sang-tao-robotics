@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Bot,
   BookOpen,
@@ -13,7 +13,11 @@ import {
   UserPlus,
   Compass,
   LogOut,
+  Sun,
+  Moon,
+  Newspaper,
 } from 'lucide-react';
+import TechArticlesHub from './components/TechArticlesHub';
 import LearningHub from './components/LearningHub';
 import OpenSourceAndAiNews from './components/OpenSourceAndAiNews';
 import GamesAndChallenges from './components/GamesAndChallenges';
@@ -24,26 +28,30 @@ import AiAssistantDrawer from './components/AiAssistantDrawer';
 import AdminDashboard from './components/AdminDashboard';
 import { AuthModal, NewbieGuideModal } from './components/AuthAndOnboardingModal';
 import {
+  INITIAL_ARTICLES,
   INITIAL_PROJECTS,
   INITIAL_DISCORD_MESSAGES,
   INITIAL_MARKETPLACE,
 } from './data/roboticsData';
 import { getTierByXp } from './utils/rankSystem';
+import { pushSharedState, pullSharedState, subscribeTabSync } from './utils/realtimeSync';
 
 const BASE_TABS = [
+  { id: 'home', label: 'Trang chủ & Công nghệ', icon: Newspaper },
   { id: 'learn', label: 'Học Robotics', icon: BookOpen },
   { id: 'opensource', label: 'Mã nguồn mở & AI', icon: Cpu },
   { id: 'games', label: 'Game & Thử thách', icon: Gamepad2 },
   { id: 'ranks', label: 'Bảng xếp hạng', icon: Trophy },
-  { id: 'discord', label: 'Server Cộng đồng', icon: MessageSquare },
+  { id: 'discord', label: 'Chat Liên kết', icon: MessageSquare },
   { id: 'market', label: 'Chợ Linh kiện', icon: ShoppingBag },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('learn');
+  const [activeTab, setActiveTab] = useState('home');
+  const [theme, setTheme] = useState(() => localStorage.getItem('robotics_theme') || 'dark');
   const [userName, setUserName] = useState(() => localStorage.getItem('robotics_username') || 'Kỹ sư Mới');
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('robotics_email') || '');
-  const [userRole, setUserRole] = useState(() => localStorage.getItem('robotics_role') || 'guest'); // 'guest' | 'member' | 'admin'
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('robotics_role') || 'guest');
   const [xp, setXp] = useState(() => Number(localStorage.getItem('robotics_xp') || 120));
   const [completedCourses, setCompletedCourses] = useState(() => {
     try {
@@ -59,10 +67,14 @@ export default function App() {
       return { serviceId: '', templateId: '', publicKey: '' };
     }
   });
+  const [firebaseUrl, setFirebaseUrl] = useState(() => localStorage.getItem('robotics_firebase_url') || '');
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('robotics_gemini_key') || '');
 
+  const [articles, setArticles] = useState(INITIAL_ARTICLES);
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [discordMessages, setDiscordMessages] = useState(INITIAL_DISCORD_MESSAGES);
   const [marketItems, setMarketItems] = useState(INITIAL_MARKETPLACE);
+  const [syncMode, setSyncMode] = useState('local');
 
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -81,6 +93,14 @@ export default function App() {
     projectsCount: projects.filter((p) => p.author === userName).length,
   };
 
+  // Apply Light/Dark theme to <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+    localStorage.setItem('robotics_theme', theme);
+  }, [theme]);
+
   useEffect(() => {
     localStorage.setItem('robotics_xp', String(xp));
   }, [xp]);
@@ -98,6 +118,50 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('robotics_email_cfg', JSON.stringify(emailConfig));
   }, [emailConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('robotics_firebase_url', firebaseUrl);
+  }, [firebaseUrl]);
+
+  useEffect(() => {
+    localStorage.setItem('robotics_gemini_key', geminiKey);
+  }, [geminiKey]);
+
+  const applyRemoteState = useCallback((remote) => {
+    if (!remote) return;
+    if (remote.articles) setArticles(remote.articles);
+    if (remote.projects) setProjects(remote.projects);
+    if (remote.discordMessages) setDiscordMessages(remote.discordMessages);
+    if (remote.marketItems) setMarketItems(remote.marketItems);
+  }, []);
+
+  const syncFromServer = useCallback(async () => {
+    const res = await pullSharedState(firebaseUrl);
+    setSyncMode(res.mode);
+    if (res.data) applyRemoteState(res.data);
+  }, [firebaseUrl, applyRemoteState]);
+
+  // Initial pull + polling every 3s for cross-device sync + BroadcastChannel for same-browser tabs
+  useEffect(() => {
+    syncFromServer();
+    const timer = setInterval(syncFromServer, 3000);
+    const unsub = subscribeTabSync(applyRemoteState);
+    return () => {
+      clearInterval(timer);
+      unsub();
+    };
+  }, [syncFromServer, applyRemoteState]);
+
+  const broadcastState = async (nextState) => {
+    const payload = {
+      articles: nextState.articles ?? articles,
+      projects: nextState.projects ?? projects,
+      discordMessages: nextState.discordMessages ?? discordMessages,
+      marketItems: nextState.marketItems ?? marketItems,
+    };
+    const res = await pushSharedState(payload, firebaseUrl);
+    setSyncMode(res.mode);
+  };
 
   const showToast = (msg) => {
     setToast(msg);
@@ -118,7 +182,7 @@ export default function App() {
       setGuideOpen(true);
     } else if (role === 'admin') {
       setActiveTab('admin');
-      showToast('Đã đăng nhập cổng Quản trị viên!');
+      showToast('Đã đăng nhập Khu vực Quản trị & Người bán!');
     } else {
       showToast(`Chào mừng trở lại, ${name}!`);
     }
@@ -127,7 +191,7 @@ export default function App() {
   const handleLogout = () => {
     setUserRole('guest');
     setUserEmail('');
-    if (activeTab === 'admin') setActiveTab('learn');
+    if (activeTab === 'admin') setActiveTab('home');
     showToast('Đã đăng xuất tài khoản.');
   };
 
@@ -137,46 +201,72 @@ export default function App() {
     handleEarnXp(course.xp, `Hoàn thành "${course.title}"`);
   };
 
+  const handleAddArticle = (art) => {
+    const next = [art, ...articles];
+    setArticles(next);
+    broadcastState({ articles: next });
+  };
+
+  const handleDeleteArticle = (id) => {
+    const next = articles.filter((a) => a.id !== id);
+    setArticles(next);
+    broadcastState({ articles: next });
+  };
+
   const handleAddProject = (proj) => {
-    setProjects((prev) => [proj, ...prev]);
+    const next = [proj, ...projects];
+    setProjects(next);
+    broadcastState({ projects: next });
     handleEarnXp(60, 'Đóng góp dự án mã nguồn mở');
   };
 
   const handleStarProject = (id) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, stars: p.stars + 1 } : p)));
+    const next = projects.map((p) => (p.id === id ? { ...p, stars: p.stars + 1 } : p));
+    setProjects(next);
+    broadcastState({ projects: next });
   };
 
   const handleDeleteProject = (id) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    showToast('Quản trị viên đã xóa dự án.');
+    const next = projects.filter((p) => p.id !== id);
+    setProjects(next);
+    broadcastState({ projects: next });
+    showToast('Đã xóa dự án.');
   };
 
   const handleSendDiscord = (channelId, msg) => {
-    setDiscordMessages((prev) => ({
-      ...prev,
-      [channelId]: [...(prev[channelId] || []), msg],
-    }));
+    const next = {
+      ...discordMessages,
+      [channelId]: [...(discordMessages[channelId] || []), msg],
+    };
+    setDiscordMessages(next);
+    broadcastState({ discordMessages: next });
   };
 
   const handleReactDiscord = (channelId, msgId, emoji) => {
-    setDiscordMessages((prev) => ({
-      ...prev,
-      [channelId]: (prev[channelId] || []).map((m) => {
+    const next = {
+      ...discordMessages,
+      [channelId]: (discordMessages[channelId] || []).map((m) => {
         if (m.id !== msgId) return m;
         const count = (m.reactions?.[emoji] || 0) + 1;
         return { ...m, reactions: { ...(m.reactions || {}), [emoji]: count } };
       }),
-    }));
+    };
+    setDiscordMessages(next);
+    broadcastState({ discordMessages: next });
   };
 
   const handleAddMarketItem = (item) => {
-    setMarketItems((prev) => [item, ...prev]);
-    showToast('Đã đăng sản phẩm lên Chợ Robotics!');
+    const next = [item, ...marketItems];
+    setMarketItems(next);
+    broadcastState({ marketItems: next });
+    showToast('Đã đăng sản phẩm lên Chợ Linh kiện!');
   };
 
   const handleDeleteMarketItem = (id) => {
-    setMarketItems((prev) => prev.filter((it) => it.id !== id));
-    showToast('Quản trị viên đã gỡ tin đăng.');
+    const next = marketItems.filter((it) => it.id !== id);
+    setMarketItems(next);
+    broadcastState({ marketItems: next });
+    showToast('Đã gỡ sản phẩm khỏi Chợ.');
   };
 
   const handleAskAi = (promptText) => {
@@ -186,47 +276,56 @@ export default function App() {
 
   const tabs =
     userRole === 'admin'
-      ? [...BASE_TABS, { id: 'admin', label: 'Quản trị (Admin)', icon: Shield }]
+      ? [...BASE_TABS, { id: 'admin', label: 'Quản trị & Người bán', icon: Shield }]
       : BASE_TABS;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col transition-colors duration-200">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <Bot className="w-6 h-6 text-slate-950" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <Bot className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
+              <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                 Trang sáng tạo Robotics
               </h1>
-              <p className="text-[11px] text-cyan-400 font-medium">
-                Học Kỹ thuật • Mã nguồn mở • AI Radar • Cộng đồng & Chợ Linh kiện
+              <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-medium">
+                Công nghệ Robot • Học Kỹ thuật • Chat Liên kết • Gemini AI
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Light / Dark Mode Toggle */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? 'Chuyển sang nền Sáng' : 'Chuyển sang nền Tối'}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-amber-300 hover:border-cyan-500 transition"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             <button
               onClick={() => setGuideOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 hover:border-cyan-500 text-xs font-semibold transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-500 text-xs font-semibold transition"
             >
-              <Compass className="w-3.5 h-3.5 text-cyan-400" /> Hướng dẫn Tân binh
+              <Compass className="w-3.5 h-3.5 text-cyan-500" /> Hướng dẫn
             </button>
 
             <button
               onClick={() => setAiOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-200 hover:bg-indigo-500/30 text-xs font-semibold transition"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-400/40 text-indigo-700 dark:text-indigo-200 hover:bg-indigo-500/25 text-xs font-semibold transition"
             >
-              <Sparkles className="w-3.5 h-3.5" /> RoboAI
+              <Sparkles className="w-3.5 h-3.5" /> Gemini AI
             </button>
 
             {userRole === 'guest' ? (
               <button
                 onClick={() => setAuthOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition"
               >
                 <UserPlus className="w-3.5 h-3.5" /> Đăng ký / Đăng nhập
               </button>
@@ -234,22 +333,22 @@ export default function App() {
               <button
                 onClick={handleLogout}
                 title="Đăng xuất"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 text-xs"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-rose-500 text-xs"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
 
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5">
               <span className="text-lg">{tier.badge}</span>
               <div>
                 <input
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-white w-24 focus:outline-none border-b border-transparent focus:border-cyan-500"
+                  className="bg-transparent text-xs font-bold text-slate-900 dark:text-white w-24 focus:outline-none border-b border-transparent focus:border-cyan-500"
                   title="Nhấn để đổi tên hiển thị"
                 />
-                <div className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
                   <Award className="w-3 h-3" /> {tier.name} • {xp} XP
                 </div>
               </div>
@@ -270,11 +369,11 @@ export default function App() {
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
                   active
                     ? isAdminTab
-                      ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
-                      : 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                      ? 'bg-rose-600 text-white shadow-md'
+                      : 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
                     : isAdminTab
-                    ? 'text-rose-300 hover:bg-rose-500/15'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'text-rose-600 dark:text-rose-300 hover:bg-rose-500/15'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -294,6 +393,13 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+        {activeTab === 'home' && (
+          <TechArticlesHub
+            articles={articles}
+            onNavigateTab={(t) => setActiveTab(t)}
+            onAskAi={handleAskAi}
+          />
+        )}
         {activeTab === 'learn' && (
           <LearningHub
             completedCourses={completedCourses}
@@ -317,6 +423,8 @@ export default function App() {
             onSendMessage={handleSendDiscord}
             onReactMessage={handleReactDiscord}
             currentUser={currentUser}
+            syncMode={syncMode}
+            onManualSync={syncFromServer}
           />
         )}
         {activeTab === 'market' && (
@@ -328,20 +436,28 @@ export default function App() {
         )}
         {activeTab === 'admin' && userRole === 'admin' && (
           <AdminDashboard
+            articles={articles}
+            onAddArticle={handleAddArticle}
+            onDeleteArticle={handleDeleteArticle}
             projects={projects}
             onDeleteProject={handleDeleteProject}
             marketItems={marketItems}
+            onAddMarketItem={handleAddMarketItem}
             onDeleteMarketItem={handleDeleteMarketItem}
             emailConfig={emailConfig}
             onSaveEmailConfig={setEmailConfig}
+            firebaseUrl={firebaseUrl}
+            onSaveFirebaseUrl={setFirebaseUrl}
+            geminiKey={geminiKey}
+            onSaveGeminiKey={setGeminiKey}
             currentUser={currentUser}
           />
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} <strong className="text-slate-300">Trang sáng tạo Robotics</strong> • Mã nguồn mở sẵn sàng triển khai trên GitHub & Cloudflare Pages.
+      <footer className="border-t border-slate-200 dark:border-slate-800/80 py-5 text-center text-xs text-slate-500">
+        © {new Date().getFullYear()} <strong className="text-slate-700 dark:text-slate-300">Trang sáng tạo Robotics</strong> • Nền tảng Công nghệ Robot, Cộng đồng & Thương mại Kỹ thuật.
       </footer>
 
       {/* Modals & Floating AI */}
