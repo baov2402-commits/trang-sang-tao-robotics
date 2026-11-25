@@ -55,6 +55,8 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
     setMessages((prev) => [...prev, { role: 'user', text }]);
     setLoading(true);
 
+    const fullPrompt = `Bạn là RoboAI, trợ lý kỹ thuật Robotics chuyên nghiệp của website "Trang sáng tạo Robotics". Trả lời ngắn gọn, chính xác bằng tiếng Việt:\n\n${text}`;
+
     if (apiKey.trim()) {
       try {
         const res = await fetch(
@@ -62,23 +64,30 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: `Bạn là RoboAI, trợ lý kỹ thuật Robotics chuyên nghiệp của website "Trang sáng tạo Robotics". Trả lời ngắn gọn, chính xác bằng tiếng Việt:\n\n${text}`,
-                    },
-                  ],
-                },
-              ],
-            }),
+            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
           }
         );
         const data = await res.json();
         const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (reply) {
           setMessages((prev) => [...prev, { role: 'ai', text: reply }]);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+    } else {
+      // Thử gọi qua Cloudflare Pages Function (/api/gemini) nếu đã cấu hình GEMINI_API_KEY trên server
+      try {
+        const res = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: fullPrompt }),
+        });
+        const data = await res.json();
+        if (data?.ok && data?.text) {
+          setMessages((prev) => [...prev, { role: 'ai', text: data.text }]);
           setLoading(false);
           return;
         }

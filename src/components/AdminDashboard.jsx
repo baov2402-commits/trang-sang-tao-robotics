@@ -64,46 +64,49 @@ export default function AdminDashboard({
 
   const handleGenerateWithGemini = async () => {
     if (!aiTopic.trim()) return;
-    if (!gKey.trim()) {
-      setArtForm({
-        title: `Phân tích kỹ thuật: ${aiTopic.trim()}`,
-        category: 'AI & Thị giác',
-        summary: `Tổng quan ứng dụng và kiến trúc triển khai "${aiTopic.trim()}" trong hệ thống Robotics hiện đại.`,
-        content: `1. Giới thiệu công nghệ "${aiTopic.trim()}":\nĐây là hướng tiếp cận quan trọng giúp tối ưu hiệu năng điều khiển và khả năng tự hành của robot.\n\n2. Kiến trúc phần cứng & phần mềm:\n• Cảm biến thu thập dữ liệu thời gian thực.\n• Bộ xử lý trung tâm (ESP32/STM32 hoặc Raspberry Pi/Jetson) chạy thuật toán lọc nhiễu và ra quyết định.\n\n(💡 Nhập Gemini API Key trong tab "Cấu hình Tích hợp" để Gemini tự động viết bài chuyên sâu theo thời gian thực!)`,
-      });
-      return;
-    }
+    const promptText = `Viết một bài thông tin công nghệ Robotics ngắn gọn, chuyên sâu bằng tiếng Việt về chủ đề: "${aiTopic}". Trả về JSON thuần (không markdown) gồm 3 trường: title, summary, content.`;
 
     setGenerating(true);
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey.trim()}`,
-        {
+      let raw = '';
+      if (gKey.trim()) {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey.trim()}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
+          }
+        );
+        const data = await res.json();
+        raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        const res = await fetch('/api/gemini', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Viết một bài thông tin công nghệ Robotics ngắn gọn, chuyên sâu bằng tiếng Việt về chủ đề: "${aiTopic}". Trả về JSON thuần (không markdown) gồm 3 trường: title, summary, content.`,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
-      const data = await res.json();
-      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const cleaned = raw.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      setArtForm((prev) => ({
-        ...prev,
-        title: parsed.title || aiTopic,
-        summary: parsed.summary || '',
-        content: parsed.content || raw,
-      }));
+          body: JSON.stringify({ prompt: promptText }),
+        });
+        const data = await res.json();
+        if (data?.ok) raw = data.text;
+      }
+
+      if (raw) {
+        const cleaned = raw.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        setArtForm((prev) => ({
+          ...prev,
+          title: parsed.title || aiTopic,
+          summary: parsed.summary || '',
+          content: parsed.content || raw,
+        }));
+      } else {
+        setArtForm({
+          title: `Phân tích kỹ thuật: ${aiTopic.trim()}`,
+          category: 'AI & Thị giác',
+          summary: `Tổng quan ứng dụng và kiến trúc triển khai "${aiTopic.trim()}" trong hệ thống Robotics hiện đại.`,
+          content: `1. Giới thiệu công nghệ "${aiTopic.trim()}":\nĐây là hướng tiếp cận quan trọng giúp tối ưu hiệu năng điều khiển và khả năng tự hành của robot.\n\n(💡 Nhập Gemini API Key trong tab "Cấu hình Tích hợp" hoặc gắn GEMINI_API_KEY trên Cloudflare Pages để Gemini tự động viết bài!)`,
+        });
+      }
     } catch {
       setArtForm((prev) => ({
         ...prev,
