@@ -51,7 +51,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('robotics_theme') || 'dark');
   const [userName, setUserName] = useState(() => localStorage.getItem('robotics_username') || 'Kỹ sư Mới');
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('robotics_email') || '');
-  const [userRole, setUserRole] = useState(() => localStorage.getItem('robotics_role') || 'guest');
+  const [userRole, setUserRole] = useState('guest');
   const [xp, setXp] = useState(() => Number(localStorage.getItem('robotics_xp') || 120));
   const [completedCourses, setCompletedCourses] = useState(() => {
     try {
@@ -68,7 +68,6 @@ export default function App() {
     }
   });
   const [firebaseUrl, setFirebaseUrl] = useState(() => localStorage.getItem('robotics_firebase_url') || '');
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('robotics_gemini_key') || '');
 
   const [articles, setArticles] = useState(INITIAL_ARTICLES);
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
@@ -92,6 +91,22 @@ export default function App() {
     badge: tier.badge,
     projectsCount: projects.filter((p) => p.author === userName).length,
   };
+
+  // Admin access is restored only from the server-verified HttpOnly session cookie.
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin-session', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.ok && data?.role === 'admin') {
+          setUserRole('admin');
+          setUserEmail(data.email || '');
+          setUserName(data.name || 'Quản trị viên');
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Apply Light/Dark theme to <html>
   useEffect(() => {
@@ -123,9 +138,6 @@ export default function App() {
     localStorage.setItem('robotics_firebase_url', firebaseUrl);
   }, [firebaseUrl]);
 
-  useEffect(() => {
-    localStorage.setItem('robotics_gemini_key', geminiKey);
-  }, [geminiKey]);
 
   const applyRemoteState = useCallback((remote) => {
     if (!remote) return;
@@ -188,7 +200,8 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await fetch('/api/admin-logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
     setUserRole('guest');
     setUserEmail('');
     if (activeTab === 'admin') setActiveTab('home');
@@ -448,8 +461,6 @@ export default function App() {
             onSaveEmailConfig={setEmailConfig}
             firebaseUrl={firebaseUrl}
             onSaveFirebaseUrl={setFirebaseUrl}
-            geminiKey={geminiKey}
-            onSaveGeminiKey={setGeminiKey}
             currentUser={currentUser}
           />
         )}

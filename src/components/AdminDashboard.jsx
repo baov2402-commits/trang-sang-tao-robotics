@@ -29,8 +29,6 @@ export default function AdminDashboard({
   onSaveEmailConfig,
   firebaseUrl,
   onSaveFirebaseUrl,
-  geminiKey,
-  onSaveGeminiKey,
   currentUser,
 }) {
   const [section, setSection] = useState('articles'); // 'articles' | 'seller' | 'members' | 'settings'
@@ -59,7 +57,6 @@ export default function AdminDashboard({
   // Config states
   const [cfg, setCfg] = useState(emailConfig);
   const [fbUrl, setFbUrl] = useState(firebaseUrl || '');
-  const [gKey, setGKey] = useState(geminiKey || '');
   const [savedNotice, setSavedNotice] = useState('');
 
   const handleGenerateWithGemini = async () => {
@@ -69,26 +66,13 @@ export default function AdminDashboard({
     setGenerating(true);
     try {
       let raw = '';
-      if (gKey.trim()) {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey.trim()}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
-          }
-        );
-        const data = await res.json();
-        raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      } else {
-        const res = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: promptText }),
-        });
-        const data = await res.json();
-        if (data?.ok) raw = data.text;
-      }
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.ok) raw = data.text;
 
       if (raw) {
         const cleaned = raw.replace(/```json|```/g, '').trim();
@@ -168,8 +152,7 @@ export default function AdminDashboard({
     e.preventDefault();
     onSaveEmailConfig(cfg);
     onSaveFirebaseUrl(fbUrl.trim());
-    onSaveGeminiKey(gKey.trim());
-    setSavedNotice('Đã lưu toàn bộ cấu hình Gemini, Đồng bộ & Gmail!');
+    setSavedNotice('Đã lưu cấu hình đồng bộ & Gmail!');
     setTimeout(() => setSavedNotice(''), 2500);
   };
 
@@ -459,13 +442,9 @@ export default function AdminDashboard({
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500" /> 1. Tích hợp Google Gemini API
             </h3>
-            <input
-              type="password"
-              placeholder="Nhập Gemini API Key (AIza...) dùng chung cho Chatbot & Viết bài"
-              value={gKey}
-              onChange={(e) => setGKey(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white"
-            />
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300">
+              Gemini dùng khóa API phía máy chủ. Thêm <code>GEMINI_API_KEY</code> trong Vercel → Project Settings → Environment Variables. Khóa sẽ không được lưu trong trình duyệt.
+            </div>
           </div>
 
           <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">

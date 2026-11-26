@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, X, KeyRound, Sparkles, Minimize2 } from 'lucide-react';
+import { Bot, Send, Sparkles, Minimize2 } from 'lucide-react';
 
 function getLocalAiReply(prompt) {
   const q = prompt.toLowerCase();
@@ -15,7 +15,7 @@ function getLocalAiReply(prompt) {
   if (q.includes('servo') || q.includes('động cơ') || q.includes('motor')) {
     return 'Chọn động cơ cho Robot:\n• **Servo (SG90, MG996R)**: Quay góc chính xác (0-180°), dùng cho cánh tay robot nhẹ.\n• **Stepper (NEMA 17)**: Chính xác cao, giữ lực tốt cho máy CNC/robot 6 bậc tự do.\n• **DC Encoder**: Phù hợp làm bánh xe di chuyển có đo tốc độ/quãng đường.';
   }
-  return 'Mình là **RoboAI** của *Trang sáng tạo Robotics*! Bạn có thể hỏi mình về **PID, Arduino/ESP32, ROS2/SLAM, Động cơ Servo/Stepper**, hoặc nhập **Gemini API Key** (biểu tượng chìa khóa) để kích hoạt chế độ AI chuyên sâu trực tiếp!';
+  return 'Mình là **RoboAI** của *Trang sáng tạo Robotics*! Bạn có thể hỏi mình về **PID, Arduino/ESP32, ROS2/SLAM, Động cơ Servo/Stepper**, và các dự án robot thực tế.';
 }
 
 export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, onClearExternalPrompt }) {
@@ -27,8 +27,6 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('robotics_gemini_key') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -42,11 +40,6 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
     }
   }, [externalPrompt]);
 
-  const saveKey = (val) => {
-    setApiKey(val);
-    localStorage.setItem('robotics_gemini_key', val);
-  };
-
   const sendMessage = async (customText) => {
     const text = (customText ?? input).trim();
     if (!text || loading) return;
@@ -57,43 +50,20 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
 
     const fullPrompt = `Bạn là RoboAI, trợ lý kỹ thuật Robotics chuyên nghiệp của website "Trang sáng tạo Robotics". Trả lời ngắn gọn, chính xác bằng tiếng Việt:\n\n${text}`;
 
-    if (apiKey.trim()) {
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-          }
-        );
-        const data = await res.json();
-        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (reply) {
-          setMessages((prev) => [...prev, { role: 'ai', text: reply }]);
-          setLoading(false);
-          return;
-        }
-      } catch {
-        // Fallback
+    try {
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.ok && data?.text) {
+        setMessages((prev) => [...prev, { role: 'ai', text: data.text }]);
+        setLoading(false);
+        return;
       }
-    } else {
-      // Thử gọi qua Cloudflare Pages Function (/api/gemini) nếu đã cấu hình GEMINI_API_KEY trên server
-      try {
-        const res = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: fullPrompt }),
-        });
-        const data = await res.json();
-        if (data?.ok && data?.text) {
-          setMessages((prev) => [...prev, { role: 'ai', text: data.text }]);
-          setLoading(false);
-          return;
-        }
-      } catch {
-        // Fallback to local knowledge base
-      }
+    } catch {
+      // Use the built-in knowledge fallback when the server is unavailable.
     }
 
     setTimeout(() => {
@@ -125,44 +95,18 @@ export default function AiAssistantDrawer({ isOpen, onToggle, externalPrompt, on
           <div>
             <div className="text-sm font-bold text-white">RoboAI Hỗ trợ Kỹ thuật</div>
             <div className="text-[10px] text-emerald-400">
-              {apiKey ? 'Đã kết nối Gemini API' : 'Chế độ Offline Thông minh'}
+              AI máy chủ • Gemini nếu đã cấu hình
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setShowKeyInput(!showKeyInput)}
-            title="Cài đặt Gemini API Key"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-slate-800"
-          >
-            <KeyRound className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onToggle}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-          >
-            <Minimize2 className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={onToggle}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+          aria-label="Thu nhỏ RoboAI"
+        >
+          <Minimize2 className="w-4 h-4" />
+        </button>
       </div>
-
-      {showKeyInput && (
-        <div className="p-3 bg-slate-950/90 border-b border-slate-800 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] text-slate-400">
-            <span>Nhập Gemini API Key (tùy chọn, lưu tại trình duyệt):</span>
-            <button onClick={() => setShowKeyInput(false)}>
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => saveKey(e.target.value)}
-            placeholder="AIza..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
-          />
-        </div>
-      )}
 
       {/* Messages */}
       <div className="flex-1 p-4 overflow-y-auto space-y-3">

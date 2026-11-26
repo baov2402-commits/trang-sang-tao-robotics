@@ -7,8 +7,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [otpInput, setOtpInput] = useState('');
+    const [otpInput, setOtpInput] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [sending, setSending] = useState(false);
@@ -17,97 +16,99 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
 
   const handleSendOtp = async () => {
     setErrorMsg('');
+    setStatusMsg('');
     if (!email.includes('@')) {
-      setErrorMsg('Vui lòng nhập địa chỉ Gmail hợp lệ.');
+      setErrorMsg('Vui lòng nhập địa chỉ email hợp lệ.');
       return;
     }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(code);
     setSending(true);
-
-    // Nếu Admin đã cấu hình EmailJS, gửi mã thật về Gmail
-    if (emailConfig?.serviceId && emailConfig?.templateId && emailConfig?.publicKey) {
-      try {
-        const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            service_id: emailConfig.serviceId,
-            template_id: emailConfig.templateId,
-            user_id: emailConfig.publicKey,
-            template_params: {
-              to_email: email,
-              to_name: name || 'Thành viên mới',
-              otp_code: code,
-              app_name: 'Trang sáng tạo Robotics',
-            },
-          }),
-        });
-        if (res.ok) {
-          setOtpSent(true);
-          setStatusMsg(`Đã gửi mã xác thực 6 số tới Gmail: ${email}`);
-          setSending(false);
-          return;
-        }
-      } catch {
-        // Fallback demo mode
+    try {
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), name: name.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        setErrorMsg(result?.error || 'Không gửi được mã xác thực.');
+        return;
       }
-    }
-
-    // Chế độ Demo khi chưa gắn EmailJS / SMTP
-    setTimeout(() => {
       setOtpSent(true);
-      setStatusMsg(
-        `[Chế độ Demo] Mã xác thực gửi tới ${email} là: ${code} (Quản trị viên có thể gắn EmailJS trong Trang Quản trị để gửi mail thật).`
-      );
+      setStatusMsg(result.message || 'Đã gửi mã xác thực đến email của bạn.');
+    } catch {
+      setErrorMsg('Không thể kết nối dịch vụ gửi email. Vui lòng thử lại.');
+    } finally {
       setSending(false);
-    }, 400);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     if (!otpSent) {
-      setErrorMsg('Vui lòng nhấn "Gửi mã về Gmail" trước.');
+      setErrorMsg('Hãy gửi mã xác thực đến email trước.');
       return;
     }
-    if (otpInput.trim() !== generatedOtp) {
-      setErrorMsg('Mã xác thực OTP chưa đúng. Vui lòng kiểm tra lại.');
-      return;
+    setSending(true);
+    try {
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, code: otpInput.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        setErrorMsg(result?.error || 'Không thể xác thực tài khoản.');
+        return;
+      }
+      onLoginSuccess({ name: result.name, email: result.email, role: 'member', isNewUser: true });
+      onClose();
+    } catch {
+      setErrorMsg('Không thể kết nối máy chủ xác thực. Vui lòng thử lại.');
+    } finally {
+      setSending(false);
     }
-    onLoginSuccess({
-      name: name.trim() || 'Tân binh Robotics',
-      email: email.trim(),
-      role: 'member',
-      isNewUser: true,
-    });
-    onClose();
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (email.trim() === 'admin@robotics.vn' && password === 'admin123') {
-      onLoginSuccess({
-        name: 'Quản trị viên',
-        email: 'admin@robotics.vn',
-        role: 'admin',
-        isNewUser: false,
+    if (!email.includes('@') || password.length < 10) {
+      setErrorMsg('Vui lòng kiểm tra email và dùng mật khẩu ít nhất 10 ký tự.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      onClose();
-      return;
+      const result = await response.json();
+      if (response.ok && result?.ok && (result?.role === 'admin' || result?.role === 'member')) {
+        onLoginSuccess({
+          name: result.name || 'Quản trị viên',
+          email: email.trim(),
+          role: result.role,
+          isNewUser: false,
+        });
+        onClose();
+        return;
+      }
+      if (response.status !== 401 && response.status !== 503) {
+        throw new Error(result?.error || 'Không thể xác thực tài khoản.');
+      }
+      if (response.status === 503) {
+        setErrorMsg(result?.error || 'Dịch vụ đăng nhập chưa được cấu hình trên máy chủ.');
+        return;
+      }
+      setErrorMsg('Thông tin đăng nhập không hợp lệ.');
+    } catch {
+      setErrorMsg('Không thể kết nối máy chủ xác thực. Vui lòng thử lại.');
+    } finally {
+      setSending(false);
     }
-    if (!email.includes('@') || password.length < 4) {
-      setErrorMsg('Email hoặc mật khẩu không hợp lệ (mật khẩu tối thiểu 4 ký tự).');
-      return;
-    }
-    onLoginSuccess({
-      name: email.split('@')[0],
-      email: email.trim(),
-      role: 'member',
-      isNewUser: false,
-    });
-    onClose();
   };
 
   return (
@@ -184,7 +185,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
             <input
               required
               type="password"
-              placeholder="Tạo mật khẩu"
+              placeholder="Tạo mật khẩu (ít nhất 10 ký tự)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white"
@@ -203,7 +204,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
             )}
             <button
               type="submit"
-              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2"
+              disabled={sending || !otpSent}
+              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-slate-950 font-bold text-sm flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" /> Xác nhận & Bắt đầu học (+50 XP)
             </button>
@@ -227,14 +229,14 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white"
             />
             <div className="text-[11px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-              💡 Tài khoản Quản trị mặc định: <strong className="text-cyan-300">admin@robotics.vn</strong> / mật khẩu:{' '}
-              <strong className="text-cyan-300">admin123</strong>
+              Tài khoản thành viên và quản trị được xác thực ở máy chủ. Mật khẩu không lưu trong trình duyệt.
             </div>
             <button
               type="submit"
-              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm"
+              disabled={sending}
+              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-slate-950 font-bold text-sm"
             >
-              Đăng nhập ngay
+              {sending ? 'Đang xác thực...' : 'Đăng nhập ngay'}
             </button>
           </form>
         )}
