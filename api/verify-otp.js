@@ -9,7 +9,7 @@ export default async function handler(req,res){
  const name=typeof req.body?.name==='string'?req.body.name.trim().slice(0,80):'';
  const password=typeof req.body?.password==='string'?req.body.password:'';
  const code=typeof req.body?.code==='string'?req.body.code.trim():'';
- if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||name.length<2||password.length<10||!/^\\d{6}$/.test(code))return res.status(400).json({ok:false,error:'Kiểm tra họ tên, email, mật khẩu tối thiểu 10 ký tự và OTP 6 số.'});
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||name.length<2||password.length<10||!/^\d{6}$/.test(code))return res.status(400).json({ok:false,error:'Kiểm tra họ tên, email, mật khẩu tối thiểu 10 ký tự và OTP 6 số.'});
  try{
   const key='robotics:otp:'+email; const got=await fetch(url+'/get/'+encodeURIComponent(key),{headers:{Authorization:'Bearer '+token}}); const data=await got.json();
   if(typeof data?.result!=='string')return res.status(400).json({ok:false,error:'Mã đã hết hạn hoặc chưa được gửi.'});
