@@ -19,6 +19,8 @@ function ThreeMaze({ onWin }) {
   const [status, setStatus] = useState('Điều khiển robot trong mê cung 3D và thu thập 5 lõi năng lượng.');
   const [won, setWon] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
+  const positionRef = useRef(position);
+  useEffect(() => { positionRef.current = position; }, [position]);
 
   useEffect(() => {
     let disposed = false;
@@ -152,8 +154,6 @@ function ThreeMaze({ onWin }) {
         setStatus('Không tải được thư viện 3D. Kiểm tra kết nối mạng rồi tải lại trang.');
       }
     };
-    const positionRef = { current: position };
-    positionRefRef.current = positionRef;
     setup();
     return () => {
       disposed = true;
@@ -162,9 +162,6 @@ function ThreeMaze({ onWin }) {
   // Three.js scene is initialized once; position updates are rendered from the ref.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const positionRefRef = useRef({ current: START });
-  useEffect(() => { positionRefRef.current.current = position; }, [position]);
 
   const move = useCallback((dx, dz) => {
     if (won) return;
