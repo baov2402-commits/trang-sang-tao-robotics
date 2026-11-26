@@ -18,3 +18,37 @@
     background: #334155;
   }
 }
+
+/* Dark theme: neutral black surfaces (remove the navy/blue tint). */
+html.dark body {
+  background-color: #000000;
+}
+
+html.dark [class~="bg-slate-950"],
+html.dark [class~="dark:bg-slate-950"] {
+  background-color: #000000 !important;
+}
+
+html.dark [class*="bg-slate-900"] {
+  background-color: #080808 !important;
+}
+
+html.dark [class*="bg-slate-800"] {
+  background-color: #141414 !important;
+}
+
+html.dark [class*="bg-slate-700"] {
+  background-color: #202020 !important;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #242424;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #383838;
+}
