@@ -68,7 +68,6 @@ export default function App() {
     }
   });
   const [firebaseUrl, setFirebaseUrl] = useState(() => localStorage.getItem('robotics_firebase_url') || '');
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('robotics_gemini_key') || '');
 
   const [articles, setArticles] = useState(INITIAL_ARTICLES);
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
@@ -123,9 +122,6 @@ export default function App() {
     localStorage.setItem('robotics_firebase_url', firebaseUrl);
   }, [firebaseUrl]);
 
-  useEffect(() => {
-    localStorage.setItem('robotics_gemini_key', geminiKey);
-  }, [geminiKey]);
 
   const applyRemoteState = useCallback((remote) => {
     if (!remote) return;
@@ -448,8 +444,6 @@ export default function App() {
             onSaveEmailConfig={setEmailConfig}
             firebaseUrl={firebaseUrl}
             onSaveFirebaseUrl={setFirebaseUrl}
-            geminiKey={geminiKey}
-            onSaveGeminiKey={setGeminiKey}
             currentUser={currentUser}
           />
         )}
