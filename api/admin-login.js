@@ -1,7 +1,9 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// Admin credentials are configured only in Vercel Environment Variables:
-// ADMIN_EMAIL and ADMIN_PASSWORD. Never commit either value.
+function sign(value, secret) {
+  return createHmac('sha256', secret).update(value).digest('hex');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -10,28 +12,28 @@ export default async function handler(req, res) {
 
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminEmail || !adminPassword) {
+  const sessionSecret = process.env.ADMIN_SESSION_SECRET;
+  if (!adminEmail || !adminPassword || !sessionSecret) {
     return res.status(503).json({ ok: false, error: 'Admin authentication is not configured.' });
   }
 
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const expectedEmail = adminEmail.trim().toLowerCase();
-  const a = Buffer.from(email);
-  const b = Buffer.from(expectedEmail);
-  const p = Buffer.from(password);
-  const q = Buffer.from(adminPassword);
-
-  const emailMatches = a.length === b.length && timingSafeEqual(a, b);
-  const passwordMatches = p.length === q.length && timingSafeEqual(p, q);
+  const emailA = Buffer.from(email);
+  const emailB = Buffer.from(expectedEmail);
+  const passA = Buffer.from(password);
+  const passB = Buffer.from(adminPassword);
+  const emailMatches = emailA.length === emailB.length && timingSafeEqual(emailA, emailB);
+  const passwordMatches = passA.length === passB.length && timingSafeEqual(passA, passB);
 
   if (!emailMatches || !passwordMatches) {
     return res.status(401).json({ ok: false, error: 'Invalid credentials.' });
   }
 
-  return res.status(200).json({
-    ok: true,
-    role: 'admin',
-    name: 'Quản trị viên',
-  });
+  const expires = Math.floor(Date.now() / 1000) + 60 * 60 * 8;
+  const payload = String(expires);
+  const token = `${payload}.${sign(payload, sessionSecret)}`;
+  res.setHeader('Set-Cookie', `robotics_admin_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800`);
+  return res.status(200).json({ ok: true, role: 'admin', name: 'Quản trị viên' });
 }
