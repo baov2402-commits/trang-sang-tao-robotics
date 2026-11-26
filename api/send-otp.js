@@ -10,8 +10,8 @@ export default async function handler(req,res) {
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ok:false,error:'Email không hợp lệ.'});
  const code=String(randomInt(100000,1000000)), key='robotics:otp:'+email, cooldown='robotics:otp-cooldown:'+email;
  try {
-  const old=await fetch(url+'/get/'+encodeURIComponent(key),{headers:{Authorization:'Bearer '+token}}); const oldData=await old.json();
-  if(oldData?.result) return res.status(429).json({ok:false,error:'Mã vừa được gửi. Vui lòng chờ 60 giây.'});
+  const limited=await fetch(url+'/set/'+encodeURIComponent(cooldown)+'/1/ex/60/nx',{headers:{Authorization:'Bearer '+token}}); const limitData=await limited.json();
+  if(limitData?.result!=='OK') return res.status(429).json({ok:false,error:'Bạn vừa yêu cầu mã. Vui lòng chờ 60 giây.'});
   const saved=await fetch(url+'/set/'+encodeURIComponent(key)+'/'+hash(email+':'+code)+'/ex/600/nx',{headers:{Authorization:'Bearer '+token}}); const savedData=await saved.json();
   if(savedData?.result!=='OK') return res.status(429).json({ok:false,error:'Không thể tạo mã lúc này.'});
   const sent=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+mailKey,'Content-Type':'application/json'},body:JSON.stringify({from,to:[email],subject:'Mã xác thực đăng ký Robotics',text:'Xin chào '+(name||'bạn')+', mã xác thực của bạn là '+code+'. Mã có hiệu lực trong 10 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.'})});
