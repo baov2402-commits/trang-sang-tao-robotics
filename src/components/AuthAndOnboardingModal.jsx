@@ -86,11 +86,11 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const result = await response.json();
-      if (response.ok && result?.ok && result?.role === 'admin') {
+      if (response.ok && result?.ok && (result?.role === 'admin' || result?.role === 'member')) {
         onLoginSuccess({
           name: result.name || 'Quản trị viên',
           email: email.trim(),
-          role: 'admin',
+          role: result.role,
           isNewUser: false,
         });
         onClose();
@@ -100,7 +100,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
         throw new Error(result?.error || 'Không thể xác thực tài khoản.');
       }
       if (response.status === 503) {
-        setErrorMsg('Chưa cấu hình tài khoản quản trị trên máy chủ. Hãy đặt ADMIN_EMAIL và ADMIN_PASSWORD trong Vercel.');
+        setErrorMsg(result?.error || 'Dịch vụ đăng nhập chưa được cấu hình trên máy chủ.');
         return;
       }
       setErrorMsg('Thông tin đăng nhập không hợp lệ.');
