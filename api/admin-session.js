@@ -1,28 +1,3 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-
-function getCookie(req, name) {
-  const cookieHeader = req.headers.cookie || '';
-  const entry = cookieHeader.split(';').map(v => v.trim()).find(v => v.startsWith(`${name}=`));
-  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : '';
-}
-
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
-    return res.status(405).json({ ok: false });
-  }
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) return res.status(503).json({ ok: false });
-  const token = getCookie(req, 'robotics_admin_session');
-  const [expires, signature] = token.split('.');
-  if (!expires || !signature || Number(expires) <= Math.floor(Date.now() / 1000)) {
-    return res.status(401).json({ ok: false });
-  }
-  const expected = createHmac('sha256', secret).update(expires).digest('hex');
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return res.status(401).json({ ok: false });
-  }
-  return res.status(200).json({ ok: true, role: 'admin', email: process.env.ADMIN_EMAIL || '', name: 'Quản trị viên' });
-}
+function readCookie(req,name){const v=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='));return v?decodeURIComponent(v.slice(name.length+1)):'';}
+export default async function handler(req,res){if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({ok:false});}const adminToken=readCookie(req,'robotics_admin_session');const [expires,signature]=adminToken.split('.');if(expires&&signature&&Number(expires)>Math.floor(Date.now()/1000)&&process.env.ADMIN_SESSION_SECRET){const expected=createHmac('sha256',process.env.ADMIN_SESSION_SECRET).update(expires).digest('hex');const a=Buffer.from(signature),b=Buffer.from(expected);if(a.length===b.length&&timingSafeEqual(a,b))return res.status(200).json({ok:true,role:'admin',email:process.env.ADMIN_EMAIL||'',name:'Quản trị viên'});}const token=readCookie(req,'robotics_session');const [payload,signature2]=token.split('.');if(!payload||!signature2||!process.env.AUTH_SECRET)return res.status(401).json({ok:false});const expected=createHmac('sha256',process.env.AUTH_SECRET).update(payload).digest('hex');const a=Buffer.from(signature2),b=Buffer.from(expected);if(a.length!==b.length||!timingSafeEqual(a,b))return res.status(401).json({ok:false});try{const session=JSON.parse(Buffer.from(payload,'base64url').toString());if(session.expires<=Math.floor(Date.now()/1000))return res.status(401).json({ok:false});return res.status(200).json({ok:true,role:session.role,email:session.email,name:session.name});}catch{return res.status(401).json({ok:false});}}
