@@ -84,30 +84,45 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
     onClose();
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (email.trim() === 'admin@robotics.vn' && password === 'admin123') {
-      onLoginSuccess({
-        name: 'Quản trị viên',
-        email: 'admin@robotics.vn',
-        role: 'admin',
-        isNewUser: false,
+    if (!email.includes('@') || password.length < 8) {
+      setErrorMsg('Vui lòng kiểm tra email và dùng mật khẩu ít nhất 8 ký tự.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const response = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      onClose();
-      return;
+      const result = await response.json();
+      if (response.ok && result?.ok && result?.role === 'admin') {
+        onLoginSuccess({
+          name: result.name || 'Quản trị viên',
+          email: email.trim(),
+          role: 'admin',
+          isNewUser: false,
+        });
+        onClose();
+        return;
+      }
+      if (response.status !== 401 && response.status !== 503) {
+        throw new Error(result?.error || 'Không thể xác thực tài khoản.');
+      }
+      if (response.status === 503) {
+        setErrorMsg('Chưa cấu hình tài khoản quản trị trên máy chủ. Hãy đặt ADMIN_EMAIL và ADMIN_PASSWORD trong Vercel.');
+        return;
+      }
+      setErrorMsg('Thông tin đăng nhập không hợp lệ.');
+    } catch {
+      setErrorMsg('Không thể kết nối máy chủ xác thực. Vui lòng thử lại.');
+    } finally {
+      setSending(false);
     }
-    if (!email.includes('@') || password.length < 4) {
-      setErrorMsg('Email hoặc mật khẩu không hợp lệ (mật khẩu tối thiểu 4 ký tự).');
-      return;
-    }
-    onLoginSuccess({
-      name: email.split('@')[0],
-      email: email.trim(),
-      role: 'member',
-      isNewUser: false,
-    });
-    onClose();
   };
 
   return (
@@ -227,14 +242,14 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, emailConfig }) {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white"
             />
             <div className="text-[11px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-              💡 Tài khoản Quản trị mặc định: <strong className="text-cyan-300">admin@robotics.vn</strong> / mật khẩu:{' '}
-              <strong className="text-cyan-300">admin123</strong>
+              Tài khoản quản trị được xác thực an toàn ở máy chủ; không có mật khẩu mặc định trong mã nguồn.
             </div>
             <button
               type="submit"
-              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm"
+              disabled={sending}
+              className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-slate-950 font-bold text-sm"
             >
-              Đăng nhập ngay
+              {sending ? 'Đang xác thực...' : 'Đăng nhập ngay'}
             </button>
           </form>
         )}
