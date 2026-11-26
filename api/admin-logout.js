@@ -1,0 +1,8 @@
+export default function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false });
+  }
+  res.setHeader('Set-Cookie', 'robotics_admin_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
+  return res.status(200).json({ ok: true });
+}
