@@ -7,8 +7,8 @@ export default async function handler(req,res) {
  if(!url||!token||!mailKey||!from||!process.env.AUTH_SECRET) return res.status(503).json({ok:false,error:'Dịch vụ đăng ký chưa được cấu hình đầy đủ trên máy chủ.'});
  const email=typeof req.body?.email==='string'?req.body.email.trim().toLowerCase():'';
  const name=typeof req.body?.name==='string'?req.body.name.trim().slice(0,80):'';
- if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ok:false,error:'Email không hợp lệ.'});
- const code=String(randomInt(100000,1000000)), key='robotics:otp:'+email;
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ok:false,error:'Email không hợp lệ.'});
+ const code=String(randomInt(100000,1000000)), key='robotics:otp:'+email, cooldown='robotics:otp-cooldown:'+email;
  try {
   const old=await fetch(url+'/get/'+encodeURIComponent(key),{headers:{Authorization:'Bearer '+token}}); const oldData=await old.json();
   if(oldData?.result) return res.status(429).json({ok:false,error:'Mã vừa được gửi. Vui lòng chờ 60 giây.'});
