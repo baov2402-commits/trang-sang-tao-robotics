@@ -49,3 +49,19 @@ Configure these in **Vercel → Project → Settings → Environment Variables**
 Do not commit API keys, passwords, or session secrets to GitHub. If a key has been pasted into a chat or source file, revoke it and create a replacement before adding it to Vercel.
 
 The admin panel is unavailable until the three `ADMIN_*` variables are configured. The AI features use the offline knowledge fallback until `GEMINI_API_KEY` is configured.
+
+### Real email registration and member accounts
+
+Registration no longer has a demo OTP path. The server creates a six-digit code, stores only its HMAC digest with a 10-minute expiry, and sends it through Resend. The code is verified on the server before a member account is created. Passwords are stored as scrypt hashes, and member sessions use signed HttpOnly cookies.
+
+Configure these additional Vercel Environment Variables before enabling registration:
+
+| Variable | Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Server-side API key for Resend email delivery |
+| `RESEND_FROM_EMAIL` | Verified sender address/domain configured in Resend |
+| `KV_REST_API_URL` | Upstash Redis REST URL for OTP and member account storage |
+| `KV_REST_API_TOKEN` | Upstash Redis REST token |
+| `AUTH_SECRET` | Long random secret used to hash OTPs and sign member sessions |
+
+Registration and member login fail closed with a configuration error if these services are missing. No OTP is shown in the browser and no demo account is created. Email delivery requires a verified sender domain in Resend.
